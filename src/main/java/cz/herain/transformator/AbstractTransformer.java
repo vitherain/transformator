@@ -7,9 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 public abstract class AbstractTransformer<E, DTO> implements BaseTransformer<E, DTO> {
 
@@ -18,9 +16,15 @@ public abstract class AbstractTransformer<E, DTO> implements BaseTransformer<E, 
     private final Class<E> entityClass;
     private final Class<DTO> dtoClass;
 
+    private Map<String, Field> entityFieldsIncludingInheritedMap;
+    private Map<String, Field> dtoFieldsIncludingInheritedMap;
+
     public AbstractTransformer(Class<E> entityClass, Class<DTO> dtoClass) {
         this.entityClass = entityClass;
+        this.entityFieldsIncludingInheritedMap = getAllFieldsIncludingInheritedMap(entityClass);
+
         this.dtoClass = dtoClass;
+        this.dtoFieldsIncludingInheritedMap = getAllFieldsIncludingInheritedMap(dtoClass);
     }
 
     @Override
@@ -87,11 +91,9 @@ public abstract class AbstractTransformer<E, DTO> implements BaseTransformer<E, 
     }
 
     private DTO autoTransformAttributesToDTO(E entity, DTO dto) throws NoSuchFieldException, IllegalAccessException {
-        Field[] dtoFields = dtoClass.getDeclaredFields();
-
-        for (Field field : dtoFields) {
+        for (Field field : dtoFieldsIncludingInheritedMap.values()) {
             if (field.isAnnotationPresent(AutoTransform.class)) {
-                Field entityField = entityClass.getDeclaredField(field.getName());
+                Field entityField = entityFieldsIncludingInheritedMap.get(field.getName());
                 entityField.setAccessible(true);
                 Object entityValue = entityField.get(entity);
 
@@ -124,7 +126,25 @@ public abstract class AbstractTransformer<E, DTO> implements BaseTransformer<E, 
         return entity;
     }
 
-    private static void handleException(Class clazz, ReflectiveOperationException e) {
+    private final Map<String, Field> getAllFieldsIncludingInheritedMap(Class<?> clazz) {
+        Map<String, Field> fields = new HashMap<>();
+
+        Class<?> current = clazz;
+
+        do {
+            Field[] currentClassFields = current.getDeclaredFields();
+
+            for (Field field : currentClassFields) {
+                fields.put(field.getName(), field);
+            }
+
+            current = current.getSuperclass() != null ? current.getSuperclass() : null;
+        } while (current != null);
+
+        return fields;
+    }
+
+    private void handleException(Class clazz, ReflectiveOperationException e) {
         String message = "Error while creating of transformer bean of type " + clazz.getSimpleName() + " | " + e.getMessage();
         LOGGER.error(message, e);
         throw new TransformerCreationException(message, e);
