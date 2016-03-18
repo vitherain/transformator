@@ -93,16 +93,22 @@ public abstract class AbstractTransformer<E, DTO> implements BaseTransformer<E, 
     private DTO autoTransformAttributesToDTO(E entity, DTO dto) throws NoSuchFieldException, IllegalAccessException {
         for (Field field : dtoFieldsIncludingInheritedMap.values()) {
             if (field.isAnnotationPresent(AutoTransform.class)) {
-                Field entityField = entityFieldsIncludingInheritedMap.get(field.getName());
-                entityField.setAccessible(true);
-                Object entityValue = entityField.get(entity);
-
-                field.setAccessible(true);
-                field.set(dto, entityValue);
+                dto = transformFieldValueFromSourceToDestination(entity, entityFieldsIncludingInheritedMap, field, dto);
             }
         }
 
         return dto;
+    }
+
+    private <S, D> D transformFieldValueFromSourceToDestination(S source, Map<String, Field> sourceFieldsMap, Field destinationField, D destination) throws IllegalAccessException {
+        Field sourceField = sourceFieldsMap.get(destinationField.getName());
+        sourceField.setAccessible(true);
+        Object sourceValue = sourceField.get(source);
+
+        destinationField.setAccessible(true);
+        destinationField.set(destination, sourceValue);
+
+        return destination;
     }
 
     @Override
@@ -112,7 +118,23 @@ public abstract class AbstractTransformer<E, DTO> implements BaseTransformer<E, 
         if (dto != null) {
             entity = ObjectFactory.createNewInstanceOfClass(entityClass);
 
+            try {
+                entity = autoTransformAttributesToEntity(dto, entity);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                handleException(dtoClass, e);
+            }
+
             entity = setSpecificEntityAttributes(dto, entity);
+        }
+
+        return entity;
+    }
+
+    private E autoTransformAttributesToEntity(DTO dto, E entity) throws NoSuchFieldException, IllegalAccessException {
+        for (Field field : entityFieldsIncludingInheritedMap.values()) {
+            if (field.isAnnotationPresent(AutoTransform.class)) {
+                entity = transformFieldValueFromSourceToDestination(dto, dtoFieldsIncludingInheritedMap, field, entity);
+            }
         }
 
         return entity;
