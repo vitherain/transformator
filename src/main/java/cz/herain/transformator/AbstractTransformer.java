@@ -132,7 +132,7 @@ public abstract class AbstractTransformer<E, DTO> implements BaseTransformer<E, 
 
     private E autoTransformAttributesToEntity(DTO dto, E entity) throws NoSuchFieldException, IllegalAccessException {
         for (Field field : entityFieldsIncludingInheritedMap.values()) {
-            if (field.isAnnotationPresent(AutoTransform.class)) {
+            if (dtoFieldsIncludingInheritedMap.get(field.getName()).isAnnotationPresent(AutoTransform.class)) {
                 entity = transformFieldValueFromSourceToDestination(dto, dtoFieldsIncludingInheritedMap, field, entity);
             }
         }
